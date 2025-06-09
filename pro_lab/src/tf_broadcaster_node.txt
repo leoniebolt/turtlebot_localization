@@ -1,0 +1,46 @@
+#include "rclcpp/rclcpp.hpp"
+#include "geometry_msgs/msg/pose_with_covariance_stamped.hpp"
+#include "tf2_ros/transform_broadcaster.h"
+#include "geometry_msgs/msg/transform_stamped.hpp"
+
+class MapOdomTFBroadcaster : public rclcpp::Node {
+public:
+    MapOdomTFBroadcaster()
+    : Node("map_odom_tf_broadcaster") {
+        tf_broadcaster_ = std::make_shared<tf2_ros::TransformBroadcaster>(this);
+
+        pose_sub_ = this->create_subscription<geometry_msgs::msg::PoseWithCovarianceStamped>(
+            "/pose_for_tf", 10,
+            std::bind(&MapOdomTFBroadcaster::pose_callback, this, std::placeholders::_1)
+        );
+
+        RCLCPP_INFO(this->get_logger(), "TF Broadcaster Node gestartet.");
+    }
+
+private:
+    void pose_callback(const geometry_msgs::msg::PoseWithCovarianceStamped::SharedPtr msg) {
+        geometry_msgs::msg::TransformStamped transform;
+
+        transform.header.stamp = msg->header.stamp;
+        transform.header.frame_id = "map";
+        transform.child_frame_id = "odom";
+
+        transform.transform.translation.x = msg->pose.pose.position.x;
+        transform.transform.translation.y = msg->pose.pose.position.y;
+        transform.transform.translation.z = 0.0;
+
+        transform.transform.rotation = msg->pose.pose.orientation;
+
+        tf_broadcaster_->sendTransform(transform);
+    }
+
+    rclcpp::Subscription<geometry_msgs::msg::PoseWithCovarianceStamped>::SharedPtr pose_sub_;
+    std::shared_ptr<tf2_ros::TransformBroadcaster> tf_broadcaster_;
+};
+
+int main(int argc, char** argv) {
+    rclcpp::init(argc, argv);
+    rclcpp::spin(std::make_shared<MapOdomTFBroadcaster>());
+    rclcpp::shutdown();
+    return 0;
+}
